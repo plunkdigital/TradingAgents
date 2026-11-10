@@ -101,6 +101,8 @@ Write these sections, in this order, starting with the rating on its own line:
             "risk_debate_state": new_risk_debate_state,
             "final_trade_decision": final_trade_decision,
             "final_rating": final_rating,
+            "portfolio_decision": decision.model_dump(mode="json") if decision is not None else None,
+            "portfolio_decision_mode": "structured" if decision is not None else "free_text",
         }
 
     return portfolio_manager_node

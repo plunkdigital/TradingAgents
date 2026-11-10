@@ -258,6 +258,14 @@ class PortfolioDecision(BaseModel):
         default=None,
         description="Optional recommended holding period, e.g. '3-6 months'.",
     )
+    material_risks: list[str] = Field(
+        default_factory=list, max_length=20,
+        description="Material risks grounded in the supplied evidence; leave empty if unavailable.",
+    )
+    source_urls: list[str] = Field(
+        default_factory=list, max_length=50,
+        description="HTTPS source URLs explicitly present in the supplied evidence. Do not invent URLs.",
+    )
 
     @field_validator("price_target", mode="before")
     @classmethod

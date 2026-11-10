@@ -274,6 +274,13 @@ class TradingAgentsGraph:
             "tool_vendors": dict(cfg.get("tool_vendors") or {}),
         }
 
+    def export_research(self, final_state, *, observations=(), completed_at=None) -> dict:
+        """Return the versioned machine export; observed tools are not verified citations."""
+        from tradingagents.research_export import build_research_export
+
+        return build_research_export(final_state, self.run_settings(),
+            observations=observations, completed_at=completed_at)
+
     def save_reports(self, final_state, ticker, save_path=None, html=True) -> Path:
         """Write the report tree for a completed run, like the CLI does.
 
