@@ -133,6 +133,8 @@ class TradingAgentsGraph:
             return context
         if self.config.get("require_data_adapter", False):
             raise ValueError("Required caller data adapter is absent")
+        if asset_type == "commodity":
+            raise ValueError("Commodity research requires a caller data adapter and explicit units")
         identity = resolve_instrument_identity(ticker)
         return build_instrument_context(ticker, asset_type, identity, trade_date)
 

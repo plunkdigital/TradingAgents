@@ -120,16 +120,18 @@ def offline(monkeypatch, tmp_path):
     return called
 
 
-def _graph(tmp_path, monkeypatch, model, debug=False, **config):
+def _graph(tmp_path, monkeypatch, model, debug=False, selected_analysts=None, **config):
     cfg = copy.deepcopy(DEFAULT_CONFIG)
     cfg.update(results_dir=str(tmp_path / "results"), data_cache_dir=str(tmp_path / "cache"),
                memory_log_path=str(tmp_path / "log.md"), **config)
     monkeypatch.setattr(trading_graph, "create_tier_client", lambda config, tier, **k: _Client(model))
-    return trading_graph.TradingAgentsGraph(config=cfg, debug=debug)
+    return trading_graph.TradingAgentsGraph(config=cfg, debug=debug,
+        selected_analysts=selected_analysts or ("market","social","news","fundamentals"))
 
 
 @pytest.mark.unit
-def test_caller_adapter_reaches_parallel_graph_tools_without_vendor_fallback(tmp_path, monkeypatch, offline):
+@pytest.mark.parametrize("asset_type",["stock","commodity"])
+def test_caller_adapter_reaches_parallel_graph_tools_without_vendor_fallback(tmp_path, monkeypatch, offline, asset_type):
     from hashlib import sha256
     from tradingagents.dataflows.adapter import use_data_adapter
 
@@ -154,9 +156,11 @@ def test_caller_adapter_reaches_parallel_graph_tools_without_vendor_fallback(tmp
     monkeypatch.setattr(sentiment_analyst, "fetch_stocktwits_messages", forbidden)
     monkeypatch.setattr(sentiment_analyst, "fetch_reddit_posts", forbidden)
     with use_data_adapter(Adapter()):
-        graph = _graph(tmp_path, monkeypatch, ScriptedModel(), require_data_adapter=True)
-        state, _ = graph.propagate("NVDA", TRADE_DATE)
+        graph = _graph(tmp_path, monkeypatch, ScriptedModel(), require_data_adapter=True,
+            selected_analysts=["market","news"] if asset_type=="commodity" else None)
+        state, _ = graph.propagate("XAU-USD-SPOT" if asset_type=="commodity" else "NVDA", TRADE_DATE,asset_type=asset_type)
         assert graph.export_research(state)["model_metadata"]["data_adapter"] == "fixture"
+        assert graph.export_research(state)["schema_version"] == ("1.1" if asset_type=="commodity" else "1.0")
     assert {"get_stock_data", "get_news", "get_verified_market_snapshot"} <= called
     assert offline == set()
 

@@ -36,10 +36,10 @@ class ToolObservation(BaseModel):
 class ResearchExport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.0", "1.1"] = "1.0"
     ticker: str = Field(min_length=1, max_length=100)
     analysis_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
-    asset_type: Literal["stock", "crypto"]
+    asset_type: Literal["stock", "crypto", "commodity"]
     completed_at: AwareDatetime
     decision_mode: Literal["structured", "free_text", "unavailable"]
     rating: PortfolioRating | Literal["REVIEW"] | None
@@ -52,6 +52,8 @@ class ResearchExport(BaseModel):
 
     @model_validator(mode="after")
     def typed_provenance(self):
+        if self.asset_type == "commodity" and self.schema_version != "1.1":
+            raise ValueError("Commodity research requires export schema 1.1")
         if self.decision_mode == "structured":
             if self.decision is None or self.rating != self.decision.rating:
                 raise ValueError("Typed decision and rating must agree")
@@ -72,6 +74,7 @@ def build_research_export(state, settings, *, observations=(), completed_at=None
         if key in settings:
             metadata[key] = settings[key]
     result = ResearchExport(
+        schema_version="1.1" if state.get("asset_type") == "commodity" else "1.0",
         ticker=state["company_of_interest"], analysis_date=state["trade_date"],
         asset_type=state.get("asset_type", "stock"),
         completed_at=completed_at or datetime.now(timezone.utc),

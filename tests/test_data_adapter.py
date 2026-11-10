@@ -28,6 +28,15 @@ class FixtureAdapter:
 
 
 class DataAdapterTests(TestCase):
+    def test_commodity_identity_requires_an_adapter_instead_of_yahoo_resolution(self):
+        graph = TradingAgentsGraph.__new__(TradingAgentsGraph)
+        graph.config = {}
+        with patch("tradingagents.graph.trading_graph.resolve_instrument_identity",side_effect=AssertionError("Yahoo")):
+            with self.assertRaises(ValueError):
+                graph.resolve_instrument_context("XAU-USD-SPOT","commodity")
+            with use_data_adapter(FixtureAdapter("spot reference")):
+                self.assertIn("spot reference",graph.resolve_instrument_context("XAU-USD-SPOT","commodity"))
+
     def test_routed_tools_never_touch_default_vendors_or_leak_failures(self):
         adapter = FixtureAdapter("selected")
         with patch("tradingagents.dataflows.router.get_vendor", side_effect=AssertionError("unapproved vendor")):

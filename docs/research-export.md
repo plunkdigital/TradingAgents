@@ -31,6 +31,15 @@ Its focused checks can run with standard-library unittest discovery in an isolat
 environment with dotenv disabled; the existing project suite uses optional pytest.
 Neither test command should load real credential files or use live providers.
 
+Commodity references use export `schema_version: "1.1"` and
+`asset_type: "commodity"`; stock/crypto exports retain v1.0. Older consumers
+must reject the new version rather than relabel a commodity as a stock.
+Commodity identity requires a caller adapter. The caller selects market/news
+analysts, supplies explicit reference units and keeps broker positions separate.
+Commodity debate prompts use supply/demand and macro evidence; missing data is
+not replaced by company-earnings assumptions. This adds no metals vendor, broker
+integration, CLI mode, live inference or research-quality guarantee.
+
 ## Caller data adapter
 
 `tradingagents.dataflows.adapter.use_data_adapter(adapter)` scopes an explicit

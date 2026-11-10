@@ -25,6 +25,31 @@ def state(rating="Hold"):
 
 
 class ResearchExportTests(TestCase):
+    def test_commodity_debates_use_supply_and_macro_evidence_without_company_requirements(self):
+        from tradingagents.agents.researchers.bull_researcher import create_bull_researcher
+        from tradingagents.agents.researchers.bear_researcher import create_bear_researcher
+        for builder in (create_bull_researcher,create_bear_researcher):
+            with self.subTest(builder=builder.__name__):
+                model = MagicMock()
+                model.invoke.return_value.content = "Qualified commodity argument"
+                initial = Propagator().create_initial_state("XAU-USD-SPOT","2026-11-09",asset_type="commodity",instrument_context="Gold spot reference, no shares")
+                builder(model)(initial)
+                prompt = model.invoke.call_args.args[0]
+                self.assertIn("Commodity supply/demand",prompt)
+                self.assertNotIn("may be unavailable for crypto",prompt)
+                self.assertNotIn("revenue projections",prompt)
+                self.assertNotIn("market saturation",prompt)
+                self.assertIn("do not invent",prompt.lower())
+
+    def test_commodity_is_explicitly_versioned_and_not_relabelled_as_stock(self):
+        result = build_research_export(state()|{"company_of_interest":"XAU-USD-SPOT", "asset_type":"commodity"}, {}, completed_at=NOW)
+        self.assertEqual(result["schema_version"], "1.1")
+        self.assertEqual(result["asset_type"], "commodity")
+        self.assertEqual(result["ticker"], "XAU-USD-SPOT")
+        with self.assertRaises(ValidationError):
+            ResearchExport.model_validate(result|{"schema_version":"1.0"})
+        self.assertEqual(build_research_export(state(),{},completed_at=NOW)["schema_version"],"1.0")
+
     def test_all_ratings_preserve_typed_claims_without_verifying_them(self):
         for rating in ("Buy", "Overweight", "Hold", "Underweight", "Sell"):
             with self.subTest(rating=rating):
