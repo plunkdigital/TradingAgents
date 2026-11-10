@@ -10,6 +10,7 @@ from typing import Any
 import tradingagents
 from tradingagents.agents.context import build_instrument_context, resolve_instrument_identity
 from tradingagents.agents.rating import run_rating
+from tradingagents.dataflows.adapter import get_data_adapter
 from tradingagents.dataflows.config import run_config, run_config_context, set_config
 from tradingagents.dataflows.date_window import get_current_date, is_historical
 from tradingagents.dataflows.symbols import safe_ticker_component
@@ -124,6 +125,14 @@ class TradingAgentsGraph:
         path and the CLI call this so the resolved identity reaches the whole
         graph regardless of entry point.
         """
+        adapter = get_data_adapter()
+        if adapter is not None:
+            context = adapter.instrument_context(ticker, asset_type, trade_date)
+            if not isinstance(context, str) or not context.strip():
+                raise ValueError("Data adapter did not establish instrument identity")
+            return context
+        if self.config.get("require_data_adapter", False):
+            raise ValueError("Required caller data adapter is absent")
         identity = resolve_instrument_identity(ticker)
         return build_instrument_context(ticker, asset_type, identity, trade_date)
 
@@ -148,6 +157,9 @@ class TradingAgentsGraph:
         the run keeps its files and how it retries are left out.
         """
         settings = {k: v for k, v in self.config.items() if k not in _NOT_IN_SIGNATURE}
+        adapter = get_data_adapter()
+        if adapter is not None:
+            settings["caller_data_adapter"] = {"name": adapter.name, "fingerprint": adapter.fingerprint()}
         digest = hashlib.sha256(json.dumps(settings, sort_keys=True, default=str).encode()).hexdigest()[:12]
         return "|".join([
             "analysts=" + ",".join(self.selected_analysts),
@@ -259,7 +271,7 @@ class TradingAgentsGraph:
         local paths are never recorded.
         """
         cfg = self.config
-        return {
+        settings = {
             "version": tradingagents.__version__,
             "llm_provider": cfg.get("llm_provider"),
             "deep_think_provider": tier_provider(cfg, "deep") if cfg.get("llm_provider") else None,
@@ -273,6 +285,11 @@ class TradingAgentsGraph:
             "data_vendors": dict(cfg.get("data_vendors") or {}),
             "tool_vendors": dict(cfg.get("tool_vendors") or {}),
         }
+        adapter = get_data_adapter()
+        if adapter is not None:
+            settings["data_adapter"] = adapter.name
+            settings["data_adapter_fingerprint"] = adapter.fingerprint()
+        return settings
 
     def export_research(self, final_state, *, observations=(), completed_at=None) -> dict:
         """Return the versioned machine export; observed tools are not verified citations."""

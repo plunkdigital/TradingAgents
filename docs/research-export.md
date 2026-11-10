@@ -30,3 +30,26 @@ The public data models and builder are in `tradingagents.research_export`.
 Its focused checks can run with standard-library unittest discovery in an isolated
 environment with dotenv disabled; the existing project suite uses optional pytest.
 Neither test command should load real credential files or use live providers.
+
+## Caller data adapter
+
+`tradingagents.dataflows.adapter.use_data_adapter(adapter)` scopes an explicit
+trusted Python object to one run. It supplies `name`, a SHA256 configuration/code
+`fingerprint()`, `instrument_context(ticker, asset_type, trade_date)` and
+`get_data(method, *args, **kwargs) -> str`. Bind it around graph construction,
+propagation and export. This API loads no plugin paths, packages or remote tools.
+Callers own source approval, identity validation, date bounds, request budgets,
+provenance, caching, licensing and resource cleanup.
+
+Routed data tools and the otherwise direct identity/snapshot paths use the bound
+adapter. Missing methods, empty replies and errors produce unavailable data;
+they never select built-in vendors. Social posts are unavailable under an adapter.
+Set `require_data_adapter=True` to reject a missing binding, including in tool
+contexts. The default is false and existing runs are unchanged. Context variables
+propagate through LangGraph's parallel tool tasks. The adapter fingerprint affects
+checkpoint identity and is exported with its name in `model_metadata`.
+
+This hook does not assert that adapter data supports OHLC, indicators, news or
+historical research. Adapters must return explicit unavailable results for those
+they cannot supply. A returned string and valid decision schema do not establish
+source completeness, verified citations, profitability or permission to trade.

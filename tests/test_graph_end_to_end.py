@@ -129,6 +129,39 @@ def _graph(tmp_path, monkeypatch, model, debug=False, **config):
 
 
 @pytest.mark.unit
+def test_caller_adapter_reaches_parallel_graph_tools_without_vendor_fallback(tmp_path, monkeypatch, offline):
+    from hashlib import sha256
+    from tradingagents.dataflows.adapter import use_data_adapter
+
+    called = set()
+
+    class Adapter:
+        name = "fixture"
+
+        def fingerprint(self):
+            return sha256(b"fixture configuration").hexdigest()
+
+        def instrument_context(self, ticker, asset_type, trade_date):
+            return "Verified offline fixture identity " + ticker
+
+        def get_data(self, method, *args, **kwargs):
+            called.add(method)
+            return method + " offline fixture observations"
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Built-in social vendor must not be called")
+
+    monkeypatch.setattr(sentiment_analyst, "fetch_stocktwits_messages", forbidden)
+    monkeypatch.setattr(sentiment_analyst, "fetch_reddit_posts", forbidden)
+    with use_data_adapter(Adapter()):
+        graph = _graph(tmp_path, monkeypatch, ScriptedModel(), require_data_adapter=True)
+        state, _ = graph.propagate("NVDA", TRADE_DATE)
+        assert graph.export_research(state)["model_metadata"]["data_adapter"] == "fixture"
+    assert {"get_stock_data", "get_news", "get_verified_market_snapshot"} <= called
+    assert offline == set()
+
+
+@pytest.mark.unit
 @pytest.mark.parametrize("structured", [False, True], ids=["free-text", "structured"])
 def test_a_full_run_reaches_a_logged_decision(tmp_path, monkeypatch, offline, structured):
     graph = _graph(tmp_path, monkeypatch, ScriptedModel(structured=structured))

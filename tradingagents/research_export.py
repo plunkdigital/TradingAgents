@@ -68,6 +68,9 @@ def build_research_export(state, settings, *, observations=(), completed_at=None
         "version", "llm_provider", "quick_think_provider", "deep_think_provider",
         "quick_think_llm", "deep_think_llm",
     )}
+    for key in ("data_adapter", "data_adapter_fingerprint"):
+        if key in settings:
+            metadata[key] = settings[key]
     result = ResearchExport(
         ticker=state["company_of_interest"], analysis_date=state["trade_date"],
         asset_type=state.get("asset_type", "stock"),

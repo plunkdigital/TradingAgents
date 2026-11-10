@@ -1,5 +1,6 @@
 import logging
 
+from tradingagents.dataflows.adapter import get_data_adapter
 from tradingagents.dataflows.config import get_config
 from tradingagents.dataflows.errors import (
     NoMarketDataError,
@@ -199,6 +200,20 @@ def no_data_available(error: NoMarketDataError) -> str:
 
 def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
+    adapter = get_data_adapter()
+    if adapter is not None:
+        if method not in VENDOR_METHODS:
+            raise ValueError("Unsupported data method")
+        try:
+            result = adapter.get_data(method, *args, **kwargs)
+            if not isinstance(result, str) or not result.strip():
+                raise ValueError("Empty adapter data")
+            return result
+        except Exception:
+            # Do not leak caller/provider errors or fall back to unapproved data.
+            return "DATA_UNAVAILABLE: selected data adapter could not serve this method. No vendor fallback; do not fabricate data."
+    if get_config().get("require_data_adapter", False):
+        return "DATA_UNAVAILABLE: required caller data adapter is absent. No vendor fallback."
     category = get_category_for_method(method)
     vendor_config = get_vendor(category, method)
     primary_vendors = [v.strip() for v in vendor_config.split(',')]

@@ -9,6 +9,8 @@ from typing import Annotated, Literal
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
+from tradingagents.dataflows.adapter import get_data_adapter
+from tradingagents.dataflows.config import get_config
 from tradingagents.dataflows.date_window import as_of, as_of_window
 from tradingagents.dataflows.errors import NoMarketDataError, VendorUnavailableError
 from tradingagents.dataflows.router import no_data_available, route_to_vendor, vendor_unavailable
@@ -86,6 +88,17 @@ def get_verified_market_snapshot(
     resistance, or historical comparisons, and treat it as the source of truth.
     """
     # An exception out of a tool would end the run.
+    adapter = get_data_adapter()
+    if adapter is not None:
+        try:
+            result = adapter.get_data("get_verified_market_snapshot", symbol, as_of(curr_date, trade_date), look_back_days)
+            if not isinstance(result, str) or not result.strip():
+                raise ValueError("Empty adapter snapshot")
+            return result
+        except Exception:
+            return "DATA_UNAVAILABLE: selected data adapter has no verified snapshot. No vendor fallback; do not fabricate data."
+    if get_config().get("require_data_adapter", False):
+        return "DATA_UNAVAILABLE: required caller data adapter is absent. No vendor fallback."
     try:
         return build_verified_market_snapshot(symbol, as_of(curr_date, trade_date), look_back_days)
     except VendorUnavailableError as exc:
