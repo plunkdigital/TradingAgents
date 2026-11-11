@@ -424,3 +424,58 @@ def test_the_memory_step_reads_lessons_as_of_the_trade_date_and_settles_once(tmp
 
     assert asked == ["2026-01-20", "2026-01-20"]
     assert (tmp_path / "log.md").read_text() == log_after_first
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('missing_date',[False,True])
+def test_graph_callbacks_observe_tools_and_do_not_duplicate_model_starts(tmp_path,monkeypatch,offline,missing_date):
+    import threading
+    from langchain_core.callbacks import BaseCallbackHandler
+
+    class Recorder(BaseCallbackHandler):
+        def __init__(self):
+            self.starts=0
+            self.tools=[]
+            self.errors=0
+            self.lock=threading.Lock()
+        def on_chat_model_start(self,*args,**kwargs):
+            with self.lock:
+                self.starts+=1
+        def on_tool_start(self,serialized,input_str,**kwargs):
+            with self.lock:
+                self.tools.append(serialized.get('name'))
+        def on_tool_error(self,error,**kwargs):
+            with self.lock:
+                self.errors+=1
+    recorder=Recorder()
+    model=ScriptedModel(callbacks=[recorder])
+    graph=_graph(tmp_path,monkeypatch,model,selected_analysts=['market'])
+    graph.callbacks=[recorder]
+    if missing_date:
+        monkeypatch.delitem(ARGS,'curr_date')
+    graph.propagate('NVDA',TRADE_DATE)
+    assert set(recorder.tools)>={'get_stock_data','get_indicators','get_verified_market_snapshot'}
+    assert recorder.starts==len(model.calls)
+    assert recorder.starts>0
+    assert (recorder.errors>0)==missing_date
+
+
+@pytest.mark.unit
+def test_native_gold_runs_through_public_graph_and_exports_typed_coverage(tmp_path,monkeypatch,offline):
+    from tests.test_gold_reference import adapter
+    from tradingagents.dataflows.adapter import use_data_adapter
+    source,calls=adapter()
+    source.prepare()
+    monkeypatch.setitem(ARGS,'curr_date','2026-11-10')
+    monkeypatch.setitem(ARGS,'end_date','2026-11-10')
+    monkeypatch.setitem(ARGS,'start_date','2026-10-01')
+    with use_data_adapter(source):
+        graph=_graph(tmp_path,monkeypatch,ScriptedModel(),selected_analysts=['market'],require_data_adapter=True)
+        state,_=graph.propagate('XAU-USD-SPOT','2026-11-10',asset_type='commodity')
+        exported=graph.export_research(state)
+    assert exported['schema_version']=='1.2'
+    assert set(exported['coverage']['required_tools'].values())=={'available'}
+    assert exported['coverage']['history_count']==90
+    assert exported['model_metadata']['data_adapter']=='gold_api'
+    assert len(calls)==2
+    assert offline==set()

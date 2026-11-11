@@ -62,3 +62,46 @@ This hook does not assert that adapter data supports OHLC, indicators, news or
 historical research. Adapters must return explicit unavailable results for those
 they cannot supply. A returned string and valid decision schema do not establish
 source completeness, verified citations, profitability or permission to trade.
+
+## Optional native gold reference adapter
+
+`tradingagents.dataflows.vendors.gold_api.GoldReferenceAdapter` implements the
+existing public `DataAdapter` protocol. Bind it with `use_data_adapter`, prepare
+it before the graph, and close it in `finally`. Existing stock/crypto sources,
+provider selection, sign-in, CLI and graph defaults are unchanged.
+
+The adapter accepts explicit XAU/XAG USD spot-reference identities, opt-in source
+policy booleans, a 31-365 day history window and a bounded request budget (at least
+two). It reads `GOLD_API_KEY` from the normal TradingAgents environment unless a
+caller supplies a synthetic key for tests. Never copy broker credentials into it.
+`history_configured()` reports presence only, without returning a credential,
+creating a client, validating authentication or making a request.
+
+Current [Gold API documentation](https://gold-api.com/llms.txt) describes free
+history with a key, daily `avg` aggregation and a separate current spot endpoint.
+The [free tier](https://gold-api.com/pricing) has ten history/OHLC requests per hour.
+A free account/key is required for history; no paid plan is selected automatically.
+The client uses one bounded history request and one spot request, with spacing,
+no redirects/retries/fallback and a conservative one-hour retry boundary exposed
+to callers. Only complete UTC days are included. Daily averages are not closes,
+OHLC bars, volume or technical indicators. News/macro coverage is unavailable in
+this adapter and must be disclosed. Public docs/schema checks are not live source
+acceptance or a guarantee of provider data accuracy.
+
+Prepared data and credentials stay in memory. The adapter does not create a
+market database or save raw responses. Normal graph reporting/checkpoint behaviour
+is unchanged; callers requiring temporary artifacts supply private temporary
+output/cache/memory paths and clean those up after collecting their concise result.
+Existing logs are not deleted automatically.
+
+An adapter exposing `coverage()` opts into export **1.2**, with typed gold
+identity, USD/troy-ounce unit, source/capture dates, daily-average history count
+and window, required-tool outcomes and missing optional categories. No raw market
+values appear in coverage. Adapters without coverage retain export 1.0 for
+stock/crypto and 1.1 for commodities, without an extra field. Coverage and tool
+hashes do not independently verify model citations or a recommendation.
+
+Graph callbacks now reach tool execution as well as model clients. A shared
+callback is not counted twice by LangChain. Validation errors remain visible as
+tool failures. Commodity market instructions explicitly request `curr_date` and
+respect source capabilities; existing stock/crypto instructions are preserved.

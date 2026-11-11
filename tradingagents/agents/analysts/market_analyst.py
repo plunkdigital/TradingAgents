@@ -52,6 +52,21 @@ Write a very detailed and nuanced report of the trends you observe. Provide spec
             + get_language_instruction()
         )
 
+        if state.get("asset_type") == "commodity":
+            system_message = (
+                "Analyze the supplied commodity reference using only the prepared source's capabilities. "
+                f"First call get_stock_data(start_date=..., end_date='{current_date}'), then "
+                f"get_verified_market_snapshot(curr_date='{current_date}', look_back_days=30). "
+                "The instrument symbol is injected; curr_date is a required argument. "
+                "Daily average samples are not closes or OHLC bars. Do not invent volume, RSI, MACD, ATR, "
+                "moving averages or support/resistance when the source does not supply them. "
+                "Separate supported price observations from unavailable indicators and macro/news. "
+                "Describe uncertainty, sample dates and the difference between the research reference "
+                "and the caller's held product. No executable quantities or orders. "
+                "End with a short evidence and limitations table."
+                + get_language_instruction()
+            )
+
         prompt = ChatPromptTemplate.from_messages(
             [
                 (

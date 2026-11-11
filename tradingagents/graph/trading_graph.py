@@ -297,8 +297,10 @@ class TradingAgentsGraph:
         """Return the versioned machine export; observed tools are not verified citations."""
         from tradingagents.research_export import build_research_export
 
+        adapter = get_data_adapter()
+        coverage = adapter.coverage() if adapter is not None and callable(getattr(adapter, "coverage", None)) else None
         return build_research_export(final_state, self.run_settings(),
-            observations=observations, completed_at=completed_at)
+            observations=observations, completed_at=completed_at, coverage=coverage)
 
     def save_reports(self, final_state, ticker, save_path=None, html=True) -> Path:
         """Write the report tree for a completed run, like the CLI does.
@@ -400,7 +402,7 @@ class TradingAgentsGraph:
                    checkpoint_thread_id: str | None = None, portfolio=None):
         """Execute the graph and write the resulting state to disk and memory log."""
         init_agent_state = self.create_run_state(company_name, trade_date, asset_type, portfolio)
-        args = self.propagator.get_graph_args()
+        args = self.propagator.get_graph_args(callbacks=getattr(self, "callbacks", None))
 
         # Inject the checkpoint thread_id (from checkpoint_scope) so the same
         # ticker+date+graph-shape resumes; a different one starts fresh (#1089).
