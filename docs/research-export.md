@@ -96,7 +96,8 @@ nonzero offsets and numeric epochs remain rejected. Ordering, unique dates,
 window bounds, minimum coverage and freshness checks remain enforced.
 
 Spot freshness permits at most five seconds of future clock skew and at most
-15 minutes of age, at preparation and subsequent tool use. This handles small
+15 minutes of age, at preparation and subsequent tool use. The typed coverage
+export also caps future skew at five seconds. This handles small
 observed differences between the provider and caller clocks; larger future
 timestamps and stale data fail closed. The original `source_updated_at` and
 coverage `spot_as_of` remain unchanged, including when slightly ahead of capture.

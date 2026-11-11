@@ -135,6 +135,10 @@ def test_spot_freshness_bounds_allow_small_skew_without_rewriting_source_time(ag
         assert source.clock_skew_tolerance_seconds==5
         source.get_data('get_verified_market_snapshot','XAU-USD-SPOT','2026-11-10')
         assert source.coverage()['required_tools']['get_verified_market_snapshot']=='available'
+        state={'company_of_interest':'XAU-USD-SPOT','trade_date':'2026-11-10','asset_type':'commodity',
+            'portfolio_decision_mode':'unavailable','final_rating':None}
+        exported=build_research_export(state,{},coverage=source.coverage(),completed_at=NOW)
+        assert datetime.fromisoformat(exported['coverage']['spot_as_of'])==stamp
     else:
         with pytest.raises(GoldDataUnavailable):
             source.prepare()
@@ -150,6 +154,16 @@ def test_prepared_spot_rejects_a_later_backwards_clock_jump():
     assert source.get_data('get_verified_market_snapshot','XAU-USD-SPOT','2026-11-10').startswith('DATA_UNAVAILABLE')
     assert source.coverage()['required_tools']['get_verified_market_snapshot']=='unavailable'
     assert len(calls)==2
+    source.close()
+
+
+def test_export_rejects_spot_clock_skew_exceeding_the_native_bound():
+    source,_=adapter()
+    source.prepare()
+    state={'company_of_interest':'XAU-USD-SPOT','trade_date':'2026-11-10','asset_type':'commodity',
+        'portfolio_decision_mode':'unavailable','final_rating':None}
+    with pytest.raises(ValueError,match='Invalid gold coverage window'):
+        build_research_export(state,{},coverage=source.coverage()|{'spot_as_of':(NOW+timedelta(seconds=6)).isoformat()},completed_at=NOW)
     source.close()
 
 

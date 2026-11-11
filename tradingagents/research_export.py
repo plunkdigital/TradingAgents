@@ -6,7 +6,7 @@ making another model call. Financial sizing and execution are outside this API.
 from __future__ import annotations
 
 from datetime import date
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
@@ -53,7 +53,7 @@ class GoldCoverage(BaseModel):
 
     @model_validator(mode="after")
     def ordered_window(self):
-        if self.history_end < self.history_start or self.spot_as_of > self.captured_at:
+        if self.history_end < self.history_start or self.spot_as_of-self.captured_at > timedelta(seconds=5):
             raise ValueError("Invalid gold coverage window")
         return self
 
