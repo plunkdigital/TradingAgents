@@ -95,6 +95,15 @@ because this endpoint documents UTC grouping. Invalid dates, intraday values,
 nonzero offsets and numeric epochs remain rejected. Ordering, unique dates,
 window bounds, minimum coverage and freshness checks remain enforced.
 
+Spot freshness permits at most five seconds of future clock skew and at most
+15 minutes of age, at preparation and subsequent tool use. This handles small
+observed differences between the provider and caller clocks; larger future
+timestamps and stale data fail closed. The original `source_updated_at` and
+coverage `spot_as_of` remain unchanged, including when slightly ahead of capture.
+`clock_skew_tolerance_seconds` exposes the fixed bound to diagnostic callers; it
+does not configure a larger allowance. Integrations must preserve this revision's
+semantics and report timing uncertainty rather than retime the source payload.
+
 Prepared data and credentials stay in memory. The adapter does not create a
 market database or save raw responses. Normal graph reporting/checkpoint behaviour
 is unchanged; callers requiring temporary artifacts supply private temporary

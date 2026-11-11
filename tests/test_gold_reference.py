@@ -125,6 +125,34 @@ def test_wrong_spot_identity_and_stale_prepared_data_are_rejected():
     assert len(calls)==2
 
 
+@pytest.mark.parametrize('age,accepted',[(-60,False),(-5.001,False),(-5,True),(-2,True),(0,True),(900,True),(900.001,False)])
+def test_spot_freshness_bounds_allow_small_skew_without_rewriting_source_time(age,accepted):
+    stamp=NOW-timedelta(seconds=age)
+    source,calls=adapter(quote_changes={'updatedAt':stamp.isoformat()})
+    if accepted:
+        source.prepare()
+        assert source.coverage()['spot_as_of']==stamp.isoformat()
+        assert source.clock_skew_tolerance_seconds==5
+        source.get_data('get_verified_market_snapshot','XAU-USD-SPOT','2026-11-10')
+        assert source.coverage()['required_tools']['get_verified_market_snapshot']=='available'
+    else:
+        with pytest.raises(GoldDataUnavailable):
+            source.prepare()
+        assert source.stopped
+    assert len(calls)==2
+    source.close()
+
+
+def test_prepared_spot_rejects_a_later_backwards_clock_jump():
+    source,calls=adapter()
+    source.prepare()
+    source.clock=lambda:NOW-timedelta(seconds=6)
+    assert source.get_data('get_verified_market_snapshot','XAU-USD-SPOT','2026-11-10').startswith('DATA_UNAVAILABLE')
+    assert source.coverage()['required_tools']['get_verified_market_snapshot']=='unavailable'
+    assert len(calls)==2
+    source.close()
+
+
 def test_coverage_is_a_separate_versioned_contract_without_market_values():
     source,_=adapter()
     source.prepare()

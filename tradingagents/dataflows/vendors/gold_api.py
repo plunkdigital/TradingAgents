@@ -17,6 +17,7 @@ import requests
 
 BASE = "https://api.gold-api.com"
 ATTRIBUTION = "Gold reference data: Gold API https://gold-api.com/"
+SPOT_CLOCK_SKEW_SECONDS = 5
 
 
 class GoldDataUnavailable(RuntimeError):
@@ -49,10 +50,17 @@ def history_day(value):
     return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
 
 
+def spot_is_fresh(updated, now):
+    """Allow bounded clock skew, preserving the provider's original timestamp."""
+    return (updated.tzinfo is not None and now.tzinfo is not None
+        and timedelta(seconds=-SPOT_CLOCK_SKEW_SECONDS)<=now-updated<=timedelta(minutes=15))
+
+
 class GoldReferenceAdapter:
     """Prepared current spot and completed daily averages; never broker prices."""
 
     name = "gold_api"
+    clock_skew_tolerance_seconds = SPOT_CLOCK_SKEW_SECONDS
 
     def __init__(self, *, metal_symbol="XAU", ticker="XAU-USD-SPOT", quote_currency="USD",
                  history_days=90, max_requests=4, enabled=False, licensed=False,
@@ -142,7 +150,7 @@ class GoldReferenceAdapter:
                 price = positive(quote["price"])
                 if (quote.get("symbol") != self.symbol or quote.get("currency") != "USD"
                         or quote.get("name") != {"XAU":"Gold","XAG":"Silver"}[self.symbol]
-                        or updated.tzinfo is None or not timedelta(0) <= self.clock()-updated <= timedelta(minutes=15)):
+                        or not spot_is_fresh(updated,self.clock())):
                     raise ValueError("Invalid current spot")
                 self.quote = {"price":price,"source_updated_at":updated.isoformat()}
                 self.receipts[receipt["url"]] = receipt
@@ -175,7 +183,7 @@ class GoldReferenceAdapter:
                     raise ValueError("Prepared gold identity required")
                 end = (args[2] if len(args)>2 else kwargs.get("end_date")) if method=="get_stock_data" else (args[1] if len(args)>1 else kwargs.get("curr_date"))
                 end_day = datetime.strptime(end,"%Y-%m-%d").date()
-                if end_day != (self.analysis_date or self.captured_at.date()) or self.clock()-datetime.fromisoformat(self.quote["source_updated_at"]) > timedelta(minutes=15):
+                if end_day != (self.analysis_date or self.captured_at.date()) or not spot_is_fresh(datetime.fromisoformat(self.quote["source_updated_at"]),self.clock()):
                     raise ValueError("Current, fresh snapshot required")
                 start = datetime.strptime(args[1] if len(args)>1 else kwargs.get("start_date"),"%Y-%m-%d").date() if method=="get_stock_data" else end_day-timedelta(days=30)
                 points = [(day,value) for day,value in self.history if start <= day.date() < end_day]
