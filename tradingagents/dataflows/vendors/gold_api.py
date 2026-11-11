@@ -5,6 +5,7 @@ live in memory; credentials follow the other native vendors' environment setup.
 """
 import json
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -36,6 +37,16 @@ def positive(value):
     if not number.is_finite() or number <= 0:
         raise ValueError("Invalid source number")
     return str(number)
+
+
+def history_day(value):
+    """Gold API groups UTC days, including naive ISO midnight day labels."""
+    if not isinstance(value,str) or not re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[T ]00:00:00(?:\.0{1,6})?(?:Z|\+00:00)?)?",value):
+        raise ValueError("Complete UTC calendar day required")
+    # The provider documents UTC grouping. This assumption is local to its day
+    # labels, never applied to broker records or arbitrary source timestamps.
+    return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
 
 
 class GoldReferenceAdapter:
@@ -117,7 +128,7 @@ class GoldReferenceAdapter:
                     raise ValueError("Bounded daily history required")
                 points = []
                 for row in data:
-                    day = datetime.strptime(row["day"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                    day = history_day(row["day"])
                     if not start <= day < end or points and not points[-1][0] < day:
                         raise ValueError("Invalid history ordering/window")
                     points.append((day,positive(row["avg_price"])))

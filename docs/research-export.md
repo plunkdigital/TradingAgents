@@ -88,6 +88,13 @@ OHLC bars, volume or technical indicators. News/macro coverage is unavailable in
 this adapter and must be disclosed. Public docs/schema checks are not live source
 acceptance or a guarantee of provider data accuracy.
 
+History `day` labels accept date-only strings and ISO midnight timestamps with
+`T` or space separators, optional zero fractional seconds, and either no timezone
+suffix or explicit `Z`/`+00:00`. Naive midnight labels are normalized to UTC only
+because this endpoint documents UTC grouping. Invalid dates, intraday values,
+nonzero offsets and numeric epochs remain rejected. Ordering, unique dates,
+window bounds, minimum coverage and freshness checks remain enforced.
+
 Prepared data and credentials stay in memory. The adapter does not create a
 market database or save raw responses. Normal graph reporting/checkpoint behaviour
 is unchanged; callers requiring temporary artifacts supply private temporary

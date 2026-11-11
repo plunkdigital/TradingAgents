@@ -64,6 +64,42 @@ def test_daily_averages_and_spot_are_cached_only_in_memory():
     assert source.api_key=='' and source.history==[] and source.quote is None
 
 
+@pytest.mark.parametrize('suffix',['','T00:00:00',' 00:00:00','T00:00:00.000','T00:00:00Z','T00:00:00.000000+00:00'])
+def test_complete_utc_day_encodings_produce_identical_history_and_coverage(suffix):
+    source,calls=adapter(history_changes=lambda rows:[dict(row,day=row['day']+suffix) for row in rows])
+    source.prepare()
+    assert len(calls)==2 and len(source.history)==90
+    assert all(day.tzinfo==timezone.utc and day.hour==0 for day,value in source.history)
+    assert source.coverage()['history_start']=='2026-08-12'
+    assert source.coverage()['history_end']=='2026-11-09'
+    source.close()
+
+
+@pytest.mark.parametrize('day',[
+    '2026-02-31T00:00:00','2026-11-09T01:00:00','2026-11-09T00:01:00','2026-11-09T00:00:01',
+    '2026-11-09T00:00:00.000001','2026-11-09T00:00:00+01:00','2026-11-09T00:00:00-01:00',
+    '2026-11-09T00:00:00Zjunk','09/11/2026',1794182400,None,True,
+])
+def test_invalid_or_non_midnight_day_labels_fail_before_spot_request(day):
+    source,calls=adapter(history_changes=lambda rows:[*rows[:-1],dict(rows[-1],day=day)])
+    with pytest.raises(GoldDataUnavailable):
+        source.prepare()
+    assert source.stopped and len(calls)==1
+    source.close()
+
+
+@pytest.mark.parametrize('change',[
+    lambda rows:rows[::-1],lambda rows:rows+[rows[-1]],lambda rows:rows[:-10],
+    lambda rows:rows[:30]+rows[40:],lambda rows:[*rows[:-1],dict(rows[-1],day='2026-11-11')],
+])
+def test_naive_timestamp_support_preserves_ordering_duplicate_freshness_and_window_gates(change):
+    source,calls=adapter(history_changes=lambda rows:[dict(row,day=row['day']+'T00:00:00') for row in change(rows)])
+    with pytest.raises(GoldDataUnavailable):
+        source.prepare()
+    assert source.stopped and len(calls)==1
+    source.close()
+
+
 @pytest.mark.parametrize('change',[
     lambda rows:rows[::-1],lambda rows:rows[:-10],lambda rows:rows[:5],
     lambda rows:rows+[rows[-1]],lambda rows:rows[:30]+rows[40:],
