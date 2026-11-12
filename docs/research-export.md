@@ -65,6 +65,19 @@ source completeness, verified citations, profitability or permission to trade.
 
 ## Optional native gold reference adapter
 
+Callers requiring market tool coverage can opt into
+`config["market_required_tools"] = ["get_stock_data", "get_verified_market_snapshot"]`.
+The default is empty and ordinary tool selection is unchanged. The market analyst
+selects each missing tool by name, lets the model supply its arguments, and runs
+the call through the existing ToolNode and callbacks. Only a corresponding
+non-error ToolMessage counts as completed. This adds no source fetch outside the
+tool loop, no fabricated observation and no extra tool rounds or inference budget.
+Tool-disabled wrap-up still applies when rounds are spent. Providers must support
+named tool selection; refusal or ignored selection must remain unavailable or
+insufficient evidence at the consumer. Completed calls alone do not validate their
+contents. This setting participates in the existing checkpoint signature, so
+changing it cannot resume a report under the old evidence policy.
+
 `tradingagents.dataflows.vendors.gold_api.GoldReferenceAdapter` implements the
 existing public `DataAdapter` protocol. Bind it with `use_data_adapter`, prepare
 it before the graph, and close it in `finally`. Existing stock/crypto sources,

@@ -12,7 +12,18 @@ TOOLS = (
 )
 
 
-def create_market_analyst(llm):
+def create_market_analyst(llm, required_tools=()):
+    """Optionally require completed market tool calls before normal analysis.
+
+    The provider must support named tool selection. This does not grant extra
+    tool rounds or establish the truth of a tool's returned evidence.
+    """
+    if (not isinstance(required_tools, (list, tuple))
+            or any(not isinstance(name, str) or name not in {tool.name for tool in TOOLS}
+                   for name in required_tools)
+            or len(set(required_tools)) != len(required_tools)):
+        raise ValueError("market_required_tools must be distinct supported market tool names")
+    required_tools = tuple(required_tools)
 
     def market_analyst_node(state):
         current_date = state["trade_date"]
@@ -89,7 +100,7 @@ Write a very detailed and nuanced report of the trends you observe. Provide spec
         prompt = prompt.partial(current_date=current_date)
         prompt = prompt.partial(instrument_context=instrument_context)
 
-        result, report = take_turn(prompt, llm, TOOLS, state["messages"])
+        result, report = take_turn(prompt, llm, TOOLS, state["messages"], required_tools=required_tools)
 
         return {
             "messages": [result],

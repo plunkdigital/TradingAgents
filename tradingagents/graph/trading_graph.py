@@ -99,6 +99,7 @@ class TradingAgentsGraph:
             self.deep_thinking_llm,
             self.conditional_logic,
             max_tool_rounds,
+            market_required_tools=self.config.get("market_required_tools", ()),
         )
 
         self.propagator = Propagator(

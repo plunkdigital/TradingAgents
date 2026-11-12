@@ -10,7 +10,20 @@ WRAP_UP = (
 )
 
 
-def take_turn(prompt, llm, tools, messages):
+def _missing_required_tool(required_tools, messages):
+    """Only completed, non-error tool messages satisfy an optional requirement."""
+    pending, completed = {}, set()
+    for message in messages:
+        if isinstance(message, AIMessage):
+            pending.update({call["id"]: call["name"] for call in message.tool_calls})
+        elif isinstance(message, ToolMessage) and message.status != "error":
+            name = pending.pop(message.tool_call_id, None)
+            if name is not None:
+                completed.add(name)
+    return next((name for name in required_tools if name not in completed), None)
+
+
+def take_turn(prompt, llm, tools, messages, *, required_tools=()):
     """The analyst's reply and its report, which stays empty while it calls tools.
 
     Told to wrap up, it answers without tools: a model offered tools may call one
@@ -23,7 +36,14 @@ def take_turn(prompt, llm, tools, messages):
         prompt = prompt.partial(tool_names="none; your tool rounds are spent")
         result = (prompt | llm).invoke(_as_text(messages))
         return result, result.content
-    result = (prompt | llm.bind_tools(tools)).invoke(messages)
+    # Opt-in only. Let the model supply arguments, then let the existing ToolNode
+    # execute and record the call. No synthetic tool results or extra source fetch.
+    # A provider ignoring tool_choice may still finish early; downstream evidence
+    # validation must withhold that report. The graph's round cap still applies.
+    required = _missing_required_tool(required_tools, messages)
+    bound = (llm.bind_tools([tool for tool in tools if tool.name == required], tool_choice=required)
+             if required else llm.bind_tools(tools))
+    result = (prompt | bound).invoke(messages)
     return result, "" if result.tool_calls else result.content
 
 

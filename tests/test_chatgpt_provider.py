@@ -56,6 +56,17 @@ def test_system_instructions_go_as_developer_and_refused_settings_are_dropped(si
 
 
 @pytest.mark.unit
+def test_required_market_tool_selection_reaches_subscription_payload(signed_in):
+    from tradingagents.agents.tools import get_verified_market_snapshot
+    llm = _llm()
+    bound = llm.bind_tools([get_verified_market_snapshot], tool_choice='get_verified_market_snapshot')
+    payload = llm._get_request_payload([HumanMessage('Research this instrument.')], **bound.kwargs)
+    assert payload['tool_choice'] == {'type': 'function', 'name': 'get_verified_market_snapshot'}
+    assert [tool['name'] for tool in payload['tools']] == ['get_verified_market_snapshot']
+    assert payload['stream'] is True and payload['store'] is False
+
+
+@pytest.mark.unit
 def test_a_run_without_a_sign_in_stops_before_any_request(monkeypatch, tmp_path):
     monkeypatch.setattr(chatgpt_auth, "AUTH_FILE", tmp_path / "chatgpt-auth.json")
     with pytest.raises(chatgpt_auth.ChatGPTAuthError, match="tradingagents login chatgpt"):

@@ -92,6 +92,9 @@ def build_default_config() -> dict:
         "llm_provider": "openai",
         # A caller supplying scoped data can prohibit all built-in data sources.
         "require_data_adapter": False,
+        # Opt-in named tool selection for callers requiring market evidence.
+        # Empty preserves ordinary model-selected tool use. No extra rounds.
+        "market_required_tools": [],
         "deep_think_llm": "gpt-6-sol",
         "quick_think_llm": "gpt-6-luna",
         # When None, each provider's client falls back to its own default endpoint

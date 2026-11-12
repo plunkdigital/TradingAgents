@@ -99,12 +99,14 @@ class GraphSetup:
         deep_thinking_llm: Any,
         conditional_logic: ConditionalLogic,
         max_tool_rounds: int,
+        market_required_tools=(),
     ):
         """Initialize with required components."""
         self.quick_thinking_llm = quick_thinking_llm
         self.deep_thinking_llm = deep_thinking_llm
         self.conditional_logic = conditional_logic
         self.max_tool_rounds = max_tool_rounds
+        self.market_required_tools = market_required_tools
 
     def setup_graph(
         self, selected_analysts=("market", "social", "news", "fundamentals"), memory_node=None
@@ -123,7 +125,7 @@ class GraphSetup:
         plan = build_analyst_execution_plan(selected_analysts)
 
         analyst_factories = {
-            "market": lambda: create_market_analyst(self.quick_thinking_llm),
+            "market": lambda: create_market_analyst(self.quick_thinking_llm, self.market_required_tools),
             "social": lambda: create_sentiment_analyst(self.quick_thinking_llm),
             "news": lambda: create_news_analyst(self.quick_thinking_llm),
             "fundamentals": lambda: create_fundamentals_analyst(self.quick_thinking_llm),
