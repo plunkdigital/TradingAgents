@@ -218,6 +218,16 @@ def render_trader_proposal(proposal: TraderProposal) -> str:
 # ---------------------------------------------------------------------------
 
 
+class EvidenceClaim(BaseModel):
+    """Optional explicit fields for a caller's bounded evidence checks, not verification."""
+    kind: Literal["numeric_fact", "interpretation"]
+    statement: str = Field(min_length=1, max_length=500)
+    fact_id: str | None = Field(default=None, max_length=100)
+    value: str | None = Field(default=None, max_length=40)
+    unit: str | None = Field(default=None, max_length=40)
+    as_of: str | None = Field(default=None, max_length=40)
+
+
 class PortfolioDecision(BaseModel):
     """Structured output produced by the Portfolio Manager.
 
@@ -266,6 +276,14 @@ class PortfolioDecision(BaseModel):
         default_factory=list, max_length=50,
         description="HTTPS source URLs explicitly present in the supplied evidence. Do not invent URLs.",
     )
+    horizon_reason: str | None = Field(default=None, max_length=500, description=(
+        "Optional explanation for the proposed research/holding horizon, or why it cannot be established. "
+        "Do not invent a horizon or derive it from an unrelated wealth goal."))
+    evidence_claims: list[EvidenceClaim] = Field(default_factory=list, max_length=12, description=(
+        "Optional concise claims. For numeric_fact copy a fact_id actually present in returned tool evidence "
+        "and state its value, unit and as_of exactly; do not invent fact IDs. Keep broader conclusions as "
+        "interpretation. Leave empty when no explicit fact IDs were supplied. Matching fields does not "
+        "verify the statement's broader meaning or establish a profitable recommendation."))
 
     @field_validator("price_target", mode="before")
     @classmethod

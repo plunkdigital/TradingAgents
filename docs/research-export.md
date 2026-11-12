@@ -17,6 +17,18 @@ structured claims without an additional extraction call. Missing fields remain
 empty/unknown. Price targets are model-facing research fields, not broker quotes,
 quantities or execution instructions.
 
+Optional `horizon_reason` and up to twelve `evidence_claims` are filled in the
+same primary Portfolio Manager call. A numeric claim contains a supplied fact ID,
+value string, unit and observation date; interpretations remain separate claims.
+These fields select export v1.3 when nonempty/present. With empty defaults the
+legacy v1.0/v1.1/v1.2 exports omit them, and normal rendered prose is unchanged.
+V1.3 preserves existing optional commodity coverage and source verification stays
+`not_performed`. Consumers must check any numeric fields against actually delivered
+evidence themselves; matching numbers does not verify the meaning of the claim.
+An absent horizon stays unknown; an explanation does not create an approved
+investment horizon or derive one from an unrelated wealth goal. No extra model
+call, tool request, provider change or execution permission is introduced.
+
 Callers can supply validated `ToolObservation` records: invocation ID/tool name,
 aware start/end timestamps, returned/error status and SHA256/byte count of the
 actual returned payload. Tool arguments, raw payloads and error strings are not

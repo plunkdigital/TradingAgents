@@ -61,7 +61,7 @@ class GoldCoverage(BaseModel):
 class ResearchExport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["1.0", "1.1", "1.2"] = "1.0"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3"] = "1.0"
     ticker: str = Field(min_length=1, max_length=100)
     analysis_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     asset_type: Literal["stock", "crypto", "commodity"]
@@ -78,17 +78,22 @@ class ResearchExport(BaseModel):
 
     @model_validator(mode="after")
     def typed_provenance(self):
-        if self.schema_version == "1.2" and (self.coverage is None or self.coverage.ticker != self.ticker or self.asset_type != "commodity"):
+        if self.schema_version == "1.2" and self.coverage is None:
+            raise ValueError("Coverage export requires coverage")
+        if self.coverage is not None and (self.coverage.ticker != self.ticker or self.asset_type != "commodity"):
             raise ValueError("Coverage export requires matching commodity identity")
-        if self.coverage is not None and self.schema_version != "1.2":
+        if self.coverage is not None and self.schema_version not in {"1.2", "1.3"}:
             raise ValueError("Coverage requires export schema 1.2")
-        if self.asset_type == "commodity" and self.schema_version not in {"1.1", "1.2"}:
+        if self.asset_type == "commodity" and self.schema_version not in {"1.1", "1.2", "1.3"}:
             raise ValueError("Commodity research requires export schema 1.1")
         if self.decision_mode == "structured":
             if self.decision is None or self.rating != self.decision.rating:
                 raise ValueError("Typed decision and rating must agree")
         elif self.decision is not None:
             raise ValueError("Fallback must not retain a stale typed decision")
+        quality=self.decision is not None and (self.decision.horizon_reason is not None or bool(self.decision.evidence_claims))
+        if quality != (self.schema_version == "1.3"):
+            raise ValueError("Quality fields require research export 1.3")
         if any(item.completed_at > self.completed_at for item in self.observations):
             raise ValueError("Tool observation is after export completion")
         return self
@@ -103,8 +108,11 @@ def build_research_export(state, settings, *, observations=(), completed_at=None
     for key in ("data_adapter", "data_adapter_fingerprint"):
         if key in settings:
             metadata[key] = settings[key]
+    decision=state.get("portfolio_decision")
+    typed=PortfolioDecision.model_validate(decision) if decision is not None else None
+    quality=typed is not None and (typed.horizon_reason is not None or bool(typed.evidence_claims))
     result = ResearchExport(
-        schema_version="1.2" if coverage is not None else "1.1" if state.get("asset_type") == "commodity" else "1.0",
+        schema_version="1.3" if quality else "1.2" if coverage is not None else "1.1" if state.get("asset_type") == "commodity" else "1.0",
         ticker=state["company_of_interest"], analysis_date=state["trade_date"],
         asset_type=state.get("asset_type", "stock"),
         completed_at=completed_at or datetime.now(timezone.utc),
@@ -120,4 +128,7 @@ def build_research_export(state, settings, *, observations=(), completed_at=None
     data = result.model_dump(mode="json")
     if coverage is None:
         data.pop("coverage")
+    if data['decision'] is not None and not quality:
+        data['decision'].pop('horizon_reason', None)
+        data['decision'].pop('evidence_claims', None)
     return data
