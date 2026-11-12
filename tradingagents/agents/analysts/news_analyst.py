@@ -18,7 +18,15 @@ TOOLS = (
 )
 
 
-def create_news_analyst(llm):
+def create_news_analyst(llm, required_tools=()):
+    """Optionally require named news tools within the ordinary round budget."""
+    if (not isinstance(required_tools, (list, tuple))
+            or any(not isinstance(name, str) or name not in {tool.name for tool in TOOLS}
+                   for name in required_tools)
+            or len(set(required_tools)) != len(required_tools)):
+        raise ValueError("news_required_tools must be distinct supported news tool names")
+    required_tools = tuple(required_tools)
+
     def news_analyst_node(state):
         current_date = state["trade_date"]
         asset_type = state.get("asset_type", "stock")
@@ -53,7 +61,7 @@ def create_news_analyst(llm):
         prompt = prompt.partial(current_date=current_date)
         prompt = prompt.partial(instrument_context=instrument_context)
 
-        result, report = take_turn(prompt, llm, TOOLS, state["messages"])
+        result, report = take_turn(prompt, llm, TOOLS, state["messages"], required_tools=required_tools)
 
         return {
             "messages": [result],

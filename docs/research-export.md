@@ -67,6 +67,13 @@ source completeness, verified citations, profitability or permission to trade.
 
 Callers requiring market tool coverage can opt into
 `config["market_required_tools"] = ["get_stock_data", "get_verified_market_snapshot"]`.
+News callers may likewise opt into
+`config["news_required_tools"] = ["get_global_news", "get_macro_indicators"]`.
+Both defaults are empty. The existing analyst tool loop selects the next missing
+tool by name and lets the model provide its arguments. These settings add no tool
+rounds, source requests or fallback vendors. A provider can ignore named selection,
+and a tool can return unavailable data; consumers must still validate actual
+returned evidence. Configuration changes participate in checkpoint identity.
 The default is empty and ordinary tool selection is unchanged. The market analyst
 selects each missing tool by name, lets the model supply its arguments, and runs
 the call through the existing ToolNode and callbacks. Only a corresponding

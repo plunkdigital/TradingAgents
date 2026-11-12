@@ -100,6 +100,7 @@ class TradingAgentsGraph:
             self.conditional_logic,
             max_tool_rounds,
             market_required_tools=self.config.get("market_required_tools", ()),
+            news_required_tools=self.config.get("news_required_tools", ()),
         )
 
         self.propagator = Propagator(

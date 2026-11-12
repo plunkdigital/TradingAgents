@@ -95,6 +95,8 @@ def build_default_config() -> dict:
         # Opt-in named tool selection for callers requiring market evidence.
         # Empty preserves ordinary model-selected tool use. No extra rounds.
         "market_required_tools": [],
+        # Same opt-in contract for news tools. Data validation stays with callers.
+        "news_required_tools": [],
         "deep_think_llm": "gpt-6-sol",
         "quick_think_llm": "gpt-6-luna",
         # When None, each provider's client falls back to its own default endpoint
