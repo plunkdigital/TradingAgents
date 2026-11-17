@@ -17,8 +17,9 @@ def _blank_settings_overlay():
     from dotenv import dotenv_values, find_dotenv
 
     names = set(os.environ)
-    for filename in (".env", ".env.enterprise"):
-        names |= set(dotenv_values(find_dotenv(filename, usecwd=True)))
+    if os.environ.get('PYTHON_DOTENV_DISABLED', '').lower() not in {'1', 'true', 'yes', 't'}:
+        for filename in (".env", ".env.enterprise"):
+            names |= set(dotenv_values(find_dotenv(filename, usecwd=True)))
     for name in names:
         if name.startswith("TRADINGAGENTS_"):
             os.environ[name] = ""

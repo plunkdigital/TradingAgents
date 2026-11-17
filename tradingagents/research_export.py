@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 from datetime import datetime, timedelta, timezone
+import json
 from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
@@ -61,12 +62,12 @@ class GoldCoverage(BaseModel):
 class ResearchExport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3"] = "1.0"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4"] = "1.0"
     ticker: str = Field(min_length=1, max_length=100)
     analysis_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     asset_type: Literal["stock", "crypto", "commodity"]
     completed_at: AwareDatetime
-    decision_mode: Literal["structured", "free_text", "unavailable"]
+    decision_mode: Literal["structured", "free_text", "unavailable", "atomic_proposal"]
     rating: PortfolioRating | Literal["REVIEW"] | None
     decision: PortfolioDecision | None
     narrative: str
@@ -75,6 +76,7 @@ class ResearchExport(BaseModel):
     observations: list[ToolObservation]
     source_verification: Literal["not_performed"] = "not_performed"
     coverage: GoldCoverage | None = None
+    atomic_proposal: dict | None = None
 
     @model_validator(mode="after")
     def typed_provenance(self):
@@ -82,15 +84,23 @@ class ResearchExport(BaseModel):
             raise ValueError("Coverage export requires coverage")
         if self.coverage is not None and (self.coverage.ticker != self.ticker or self.asset_type != "commodity"):
             raise ValueError("Coverage export requires matching commodity identity")
-        if self.coverage is not None and self.schema_version not in {"1.2", "1.3"}:
+        if self.coverage is not None and self.schema_version not in {"1.2", "1.3", "1.4"}:
             raise ValueError("Coverage requires export schema 1.2")
-        if self.asset_type == "commodity" and self.schema_version not in {"1.1", "1.2", "1.3"}:
+        if self.asset_type == "commodity" and self.schema_version not in {"1.1", "1.2", "1.3", "1.4"}:
             raise ValueError("Commodity research requires export schema 1.1")
         if self.decision_mode == "structured":
             if self.decision is None or self.rating != self.decision.rating:
                 raise ValueError("Typed decision and rating must agree")
         elif self.decision is not None:
             raise ValueError("Fallback must not retain a stale typed decision")
+        atomic = self.atomic_proposal is not None
+        if atomic != (self.schema_version == '1.4') or atomic != (self.decision_mode == 'atomic_proposal'):
+            raise ValueError('Atomic proposals require their explicit export version and mode')
+        if atomic and (self.rating != 'REVIEW' or self.decision is not None or self.coverage is None
+                or self.asset_type != 'commodity' or self.ticker not in {'XAU-USD-SPOT', 'XAG-USD-SPOT'}
+                or len(json.dumps(self.atomic_proposal, allow_nan=False).encode()) > 400_000
+                or {'production_ready', 'independent_verification', 'verified'} & self.atomic_proposal.keys()):
+            raise ValueError('Atomic export is unverified research, not a legacy decision')
         quality=self.decision is not None and (self.decision.horizon_reason is not None or bool(self.decision.evidence_claims))
         if quality != (self.schema_version == "1.3"):
             raise ValueError("Quality fields require research export 1.3")
@@ -112,7 +122,7 @@ def build_research_export(state, settings, *, observations=(), completed_at=None
     typed=PortfolioDecision.model_validate(decision) if decision is not None else None
     quality=typed is not None and (typed.horizon_reason is not None or bool(typed.evidence_claims))
     result = ResearchExport(
-        schema_version="1.3" if quality else "1.2" if coverage is not None else "1.1" if state.get("asset_type") == "commodity" else "1.0",
+        schema_version="1.4" if state.get('atomic_proposal') is not None else "1.3" if quality else "1.2" if coverage is not None else "1.1" if state.get("asset_type") == "commodity" else "1.0",
         ticker=state["company_of_interest"], analysis_date=state["trade_date"],
         asset_type=state.get("asset_type", "stock"),
         completed_at=completed_at or datetime.now(timezone.utc),
@@ -124,10 +134,13 @@ def build_research_export(state, settings, *, observations=(), completed_at=None
         ) if isinstance(state.get(key), str)},
         model_metadata=metadata, observations=list(observations),
         coverage=coverage,
+        atomic_proposal=state.get('atomic_proposal'),
     )
     data = result.model_dump(mode="json")
     if coverage is None:
         data.pop("coverage")
+    if result.atomic_proposal is None:
+        data.pop('atomic_proposal')
     if data['decision'] is not None and not quality:
         data['decision'].pop('horizon_reason', None)
         data['decision'].pop('evidence_claims', None)

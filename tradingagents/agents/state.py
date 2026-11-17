@@ -70,6 +70,7 @@ class AgentState(MessagesState):
     final_rating: Annotated[str, "The Portfolio Manager's 5-tier rating, or REVIEW when it has none"]
     portfolio_decision: Annotated[dict | None, "Typed final decision, absent on free-text fallback"]
     portfolio_decision_mode: Annotated[str, "structured, free_text or unavailable; never inferred from narrative"]
+    atomic_proposal: Annotated[dict | None, "Optional caller-owned unverified research proposal; never a legacy decision"]
     past_context: Annotated[str, "Memory log context for the Portfolio Manager (same-ticker decisions + cross-ticker lessons), written by the Memory Log step"]
     memory_note: Annotated[str, "What the Memory Log step could not settle or read this run, for the report; empty when all went well"]
     portfolio_context: Annotated[str, "Caller-supplied holdings and cash, rendered at run start; empty when not provided"]

@@ -58,6 +58,8 @@ class TradingAgentsGraph:
         debug=False,
         config: dict[str, Any] = None,
         callbacks: list | None = None,
+        final_writer_factory=None,
+        final_writer_signature: str | None = None,
     ):
         """Initialize the trading agents graph and components.
 
@@ -66,7 +68,17 @@ class TradingAgentsGraph:
             debug: Whether to run in debug mode
             config: Configuration dictionary. If None, uses default config
             callbacks: Optional list of callback handlers (e.g., for tracking LLM/tool stats)
+            final_writer_factory: Optional caller-owned replacement for the final
+                Portfolio Manager node. Receives the existing deep model.
+            final_writer_signature: SHA-256 identity of that writer and its input;
+                required with a replacement to prevent incompatible checkpoint reuse.
         """
+        if ((final_writer_factory is None) != (final_writer_signature is None)
+                or final_writer_factory is not None and (not callable(final_writer_factory)
+                    or not isinstance(final_writer_signature, str) or len(final_writer_signature) != 64
+                    or any(char not in '0123456789abcdef' for char in final_writer_signature))):
+            raise ValueError('Final writer factory and SHA-256 signature must be supplied together')
+        self.final_writer_signature = final_writer_signature
         self.debug = debug
         self.config = config or DEFAULT_CONFIG
         self.callbacks = callbacks or []
@@ -101,6 +113,7 @@ class TradingAgentsGraph:
             max_tool_rounds,
             market_required_tools=self.config.get("market_required_tools", ()),
             news_required_tools=self.config.get("news_required_tools", ()),
+            **({'final_writer_factory': final_writer_factory} if final_writer_factory is not None else {}),
         )
 
         self.propagator = Propagator(
@@ -178,6 +191,8 @@ class TradingAgentsGraph:
             "analysts=parallel",
             "memory=parallel",
             f"settings={digest}",
+            *([f"final_writer={self.final_writer_signature}"]
+              if getattr(self, 'final_writer_signature', None) is not None else []),
         ])
 
     def propagate(self, company_name, trade_date, asset_type: str = "stock", portfolio=None):
@@ -390,6 +405,10 @@ class TradingAgentsGraph:
         """Record a finished run: its state log, and its decision in the memory log
         for reflection on the next same-ticker run. propagate() and the CLI both end here."""
         self._log_state(trade_date, final_state)
+        if (final_state.get('atomic_proposal') is not None
+                or final_state.get('portfolio_decision_mode') == 'atomic_proposal'):
+            # Unverified caller research must not become a settled decision or lesson.
+            return
         decision = final_state.get("final_trade_decision")
         if not decision:
             logger.warning("No final decision for %s on %s; nothing added to the memory log",

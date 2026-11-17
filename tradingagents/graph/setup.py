@@ -101,6 +101,7 @@ class GraphSetup:
         max_tool_rounds: int,
         market_required_tools=(),
         news_required_tools=(),
+        final_writer_factory=None,
     ):
         """Initialize with required components."""
         self.quick_thinking_llm = quick_thinking_llm
@@ -109,6 +110,7 @@ class GraphSetup:
         self.max_tool_rounds = max_tool_rounds
         self.market_required_tools = market_required_tools
         self.news_required_tools = news_required_tools
+        self.final_writer_factory = final_writer_factory
 
     def setup_graph(
         self, selected_analysts=("market", "social", "news", "fundamentals"), memory_node=None
@@ -141,7 +143,10 @@ class GraphSetup:
         aggressive_analyst = create_aggressive_debator(self.quick_thinking_llm)
         neutral_analyst = create_neutral_debator(self.quick_thinking_llm)
         conservative_analyst = create_conservative_debator(self.quick_thinking_llm)
-        portfolio_manager_node = create_portfolio_manager(self.deep_thinking_llm)
+        portfolio_manager_node = (self.final_writer_factory(self.deep_thinking_llm)
+            if self.final_writer_factory is not None else create_portfolio_manager(self.deep_thinking_llm))
+        if not callable(portfolio_manager_node):
+            raise ValueError('Final writer factory must return a graph node')
 
         workflow = StateGraph(AgentState)
 
